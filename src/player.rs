@@ -1,70 +1,103 @@
 use bevy::prelude::*;
-use bevy::input::keyboard::KeyCode;
-use crate::projectile::Projectile;
 
-#[derive(Component)]
-pub struct Player;
-
-#[derive(Component)]
-pub struct PlayerMovement {
-    pub speed: f32,
+use crate::resolution;
+use crate::projectile;
+pub struct PlayerPlugin;
+impl Plugin for PlayerPlugin{
+    fn build(&self, app : &mut App)
+    {
+        app.add_systems(Startup,setup_player)
+        .add_systems(Update,update_player);
+    }
 }
 
-pub fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let player_texture = asset_server.load("player.png");
+#[derive(Component)]
+struct Player{
+    //provides cooldown for shooting so we don't just shoot a bullet every frame
+    pub shoot_timer : f32,
+}
 
-    commands.spawn(SpriteBundle {
-        texture: player_texture,
-        transform: Transform {
-            translation: Vec3::new(0.0, -250.0, 0.0),
+fn setup_player(
+    mut commands : Commands,
+    asset_server : Res<AssetServer>,
+    resolution : Res<resolution::Resolution>,
+)
+{
+    let player_image = asset_server.load("player.png");
+    commands.spawn((
+        SpriteBundle{
+            texture : player_image,
+            transform : Transform::from_xyz(0., -(resolution.screen_dimensions.y*0.5) + (resolution.pixel_ratio*5.0), 0.).with_scale(Vec3::splat(resolution.pixel_ratio)),
             ..Default::default()
         },
-        ..Default::default()
-    })
-    .insert(Player)
-    .insert(PlayerMovement { speed: 300.0 });
+        Player{shoot_timer : 0.}
+    ));
 }
+const SPEED : f32 = 200.;
+const BULLET_SPEED : f32 = 400.;
+const SHOOT_COOLDOWN : f32 = 0.5;
+fn update_player(
+    mut commands : Commands,
+    asset_server : Res<AssetServer>,
+    mut player_query : Query<(&mut Player,&mut Transform)>,
+    time : Res<Time>,
+    keys : Res<ButtonInput<KeyCode>>,
+    resolution : Res<resolution::Resolution>,
+)
+{
+    //query for the only instance of the player
+    let(mut player,mut transform) = player_query.single_mut();
 
-pub fn player_movement_system(
-    keyboard_input: Res<Input<KeyCode>>,
-    time: Res<Time>,
-    mut query: Query<(&PlayerMovement, &mut Transform), With<Player>>,
-) {
-    for (movement, mut transform) in query.iter_mut() {
-        let mut direction = 0.0;
-        if keyboard_input.pressed(KeyCode::Left) {
-            direction -= 1.0;
-        }
-        if keyboard_input.pressed(KeyCode::Right) {
-            direction += 1.0;
-        }
+    //the input which the player is pressing for the horizontal axis
+    let mut horizontal = 0.;
+    let mut vertical = 0.;
 
-        transform.translation.x += direction * movement.speed * time.delta_seconds();
-
-        let screen_half_width = 400.0;
-        transform.translation.x = transform.translation.x.clamp(-screen_half_width, screen_half_width);
+    if keys.pressed(KeyCode::KeyA){
+        horizontal += -1.;
     }
-}
+    if keys.pressed(KeyCode::KeyD){
+        horizontal+= 1.;
+    }
+    if keys.pressed(KeyCode::KeyW){
+        vertical += 1.;
+    }
+    if keys.pressed(KeyCode::KeyS){
+        vertical += -1.;
+    }
 
-pub fn spawn_projectile(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    keyboard_input: Res<Input<KeyCode>>,
-    query: Query<&Transform, With<Player>>,
-) {
-    if keyboard_input.just_pressed(KeyCode::Space) {
-        if let Ok(player_transform) = query.single() {
-            let projectile_texture = asset_server.load("projectile.png");
+    // normalize the direction vector to ensure consistent speed in all directions
+    let direction = Vec3::new(horizontal, vertical, 0.).normalize_or_zero();
 
-            commands.spawn(SpriteBundle {
-                texture: projectile_texture,
-                transform: Transform {
-                    translation: player_transform.translation,
-                    ..Default::default()
-                },
+    //move player
+    transform.translation += direction * SPEED * time.delta_seconds();
+
+    //confine player 
+    let left_bound = -resolution.screen_dimensions.x * 0.5;
+    let right_bound = resolution.screen_dimensions.x * 0.5;
+
+    if transform.translation.x > right_bound {
+        transform.translation.x = right_bound;
+    }
+    if transform.translation.x < left_bound {
+        transform.translation.x = left_bound;
+    }
+
+    player.shoot_timer -= time.delta_seconds();
+
+    if keys.pressed(KeyCode::Space) && player.shoot_timer <= 0.
+    {
+        player.shoot_timer = SHOOT_COOLDOWN;
+        let bullet_texture = asset_server.load("bullet.png");
+        commands.spawn((
+            SpriteBundle{
+                texture : bullet_texture,
+                transform : Transform::from_translation(transform.translation).with_scale(Vec3::splat(resolution.pixel_ratio)),
                 ..Default::default()
-            })
-            .insert(Projectile { speed: 500.0 });
-        }
+            },
+            projectile::Projectile{
+                speed : BULLET_SPEED,
+            },
+        ));
     }
+    
 }

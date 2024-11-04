@@ -4,7 +4,6 @@ use crate::alien;
 use crate::resolution;
 use crate::player;
 use crate::projectile;
-
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
@@ -21,7 +20,6 @@ impl Plugin for GamePlugin {
             .add_systems(Startup, setup_scene);
     }
 }
-
 fn setup_scene(mut commands: Commands) {
     commands.spawn(Camera2dBundle { ..default() });
 }
