@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use crate::resolution;
 use rand::Rng;
 use crate::player::Player;
+
 pub struct AlienPlugin;
 
 impl Plugin for AlienPlugin {
@@ -32,33 +33,46 @@ const WIDTH: i32 = 5;
 const HEIGHT: i32 = 2;
 const SPACING: f32 = 24.;
 const ALIEN_SPEED: f32 = 50.0;
-const ALIEN_VELOCITY_RANGE: (f32, f32) = (-10.0, 10.0); // Reduced velocity range
+const ALIEN_VELOCITY_RANGE: (f32, f32) = (-10.0, 10.0);
 
 fn setup_aliens(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     resolution: Res<resolution::Resolution>,
+    alien_query: Query<&Transform, With<Alien>>,
 ) {
     commands.insert_resource(AlienManager {
         reset: false,
         alive_aliens: (WIDTH * HEIGHT) as usize,
     });
-
     let alien_texture = asset_server.load("alien.png");
     let mut rng = rand::thread_rng();
-
     for _ in 0..(WIDTH * HEIGHT) {
-        let x = rng.gen_range(-resolution.screen_dimensions.x * 0.5..resolution.screen_dimensions.x * 0.5);
-        let y = resolution.screen_dimensions.y * 0.5 - SPACING; // Spawn near the top of the screen
+        let mut x;
+        let mut y;
+        let mut position_valid;
+        loop {
+            x = rng.gen_range(-resolution.screen_dimensions.x * 0.5..resolution.screen_dimensions.x * 0.5);
+            y = resolution.screen_dimensions.y * 0.5 - SPACING;
+            position_valid = true;
+            for transform in alien_query.iter() {
+                if Vec2::distance(Vec2::new(x, y), Vec2::new(transform.translation.x, transform.translation.y)) < SPACING {
+                    position_valid = false;
+                    break;
+                }
+            }
+            if position_valid {
+                break;
+            }
+        }
         let velocity_x = rng.gen_range(ALIEN_VELOCITY_RANGE.0..ALIEN_VELOCITY_RANGE.1);
         let velocity_y = rng.gen_range(ALIEN_VELOCITY_RANGE.0..ALIEN_VELOCITY_RANGE.1);
-
         commands.spawn((
             SpriteBundle {
                 texture: alien_texture.clone(),
                 transform: Transform {
                     translation: Vec3::new(x, y, 0.0),
-                    scale: Vec3::splat(2.0), // Increase the scale to make the aliens larger
+                    scale: Vec3::splat(2.0),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -87,7 +101,7 @@ fn update_aliens(
     let player_transform = binding.single();
     let player_position = player_transform.translation;
 
-    for (entity, mut alien, mut transform, mut visibility) in param_set.p0().iter_mut() {
+    for (entity, mut alien, mut transform, _visibility) in param_set.p0().iter_mut() {
         // Calculate the direction vector from the alien to the player
         let direction = (player_position - transform.translation).normalize();
 
