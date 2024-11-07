@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use crate::resolution;
 use rand::Rng;
-
+use crate::player::Player;
 pub struct AlienPlugin;
 
 impl Plugin for AlienPlugin {
@@ -28,11 +28,11 @@ pub struct AlienManager {
     pub alive_aliens: usize,
 }
 
-const WIDTH: i32 = 10;
-const HEIGHT: i32 = 5;
+const WIDTH: i32 = 5;
+const HEIGHT: i32 = 2;
 const SPACING: f32 = 24.;
-const ALIEN_SPEED: f32 = 100.0;
-const ALIEN_VELOCITY_RANGE: (f32, f32) = (-200.0, 200.0);
+const ALIEN_SPEED: f32 = 50.0;
+const ALIEN_VELOCITY_RANGE: (f32, f32) = (-10.0, 10.0); // Reduced velocity range
 
 fn setup_aliens(
     mut commands: Commands,
@@ -47,67 +47,75 @@ fn setup_aliens(
     let alien_texture = asset_server.load("alien.png");
     let mut rng = rand::thread_rng();
 
-    for x in 0..WIDTH {
-        for y in 0..HEIGHT {
-            let position = Vec3::new(
-                x as f32 * SPACING - resolution.screen_dimensions.x * 0.5 + SPACING,
-                resolution.screen_dimensions.y * 0.5 - SPACING * (y as f32 + 1.),
-                0.,
-            );
+    for _ in 0..(WIDTH * HEIGHT) {
+        let x = rng.gen_range(-resolution.screen_dimensions.x * 0.5..resolution.screen_dimensions.x * 0.5);
+        let y = resolution.screen_dimensions.y * 0.5 - SPACING; // Spawn near the top of the screen
+        let velocity_x = rng.gen_range(ALIEN_VELOCITY_RANGE.0..ALIEN_VELOCITY_RANGE.1);
+        let velocity_y = rng.gen_range(ALIEN_VELOCITY_RANGE.0..ALIEN_VELOCITY_RANGE.1);
 
-            let velocity = Vec2::new(
-                rng.gen_range(ALIEN_VELOCITY_RANGE.0..ALIEN_VELOCITY_RANGE.1),
-                rng.gen_range(ALIEN_VELOCITY_RANGE.0..ALIEN_VELOCITY_RANGE.1),
-            );
-
-            commands.spawn((
-                SpriteBundle {
-                    transform: Transform::from_translation(position).with_scale(Vec3::splat(resolution.pixel_ratio)),
-                    texture: alien_texture.clone(),
-                    ..default()
+        commands.spawn((
+            SpriteBundle {
+                texture: alien_texture.clone(),
+                transform: Transform {
+                    translation: Vec3::new(x, y, 0.0),
+                    scale: Vec3::splat(2.0), // Increase the scale to make the aliens larger
+                    ..Default::default()
                 },
-                Alien {
-                    original_position: position,
-                    dead: false,
-                    velocity,
-                },
-            ));
-        }
+                ..Default::default()
+            },
+            Alien {
+                dead: false,
+                original_position: Vec3::new(x, y, 0.0),
+                velocity: Vec2::new(velocity_x, velocity_y),
+            },
+        ));
     }
 }
 
 fn update_aliens(
     mut commands: Commands,
-    mut alien_query: Query<(Entity, &mut Alien, &mut Transform, &mut Visibility)>,
+    mut param_set: ParamSet<(
+        Query<(Entity, &mut Alien, &mut Transform, &mut Visibility)>,
+        Query<&Transform, With<Player>>,
+    )>,
     mut alien_manager: ResMut<AlienManager>,
     resolution: Res<resolution::Resolution>,
     time: Res<Time>,
 ) {
-    for (entity, mut alien, mut transform, mut visibility) in alien_query.iter_mut() {
+    // Create a longer-lived binding for the player's transform
+    let binding = param_set.p1();
+    let player_transform = binding.single();
+    let player_position = player_transform.translation;
+
+    for (entity, mut alien, mut transform, mut visibility) in param_set.p0().iter_mut() {
+        // Calculate the direction vector from the alien to the player
+        let direction = (player_position - transform.translation).normalize();
+
+        // Update the alien's velocity to move towards the player
+        alien.velocity = Vec2::new(direction.x, direction.y) * ALIEN_SPEED;
+
+        // Move the alien
         transform.translation += Vec3::new(
             alien.velocity.x * time.delta_seconds(),
             alien.velocity.y * time.delta_seconds(),
             0.,
         );
 
-        // Check if the alien has gone out of bounds and bounce it back
-        if transform.translation.x.abs() > resolution.screen_dimensions.x * 0.5 - SPACING {
-            alien.velocity.x *= -1.;
-        }
-        if transform.translation.y < -resolution.screen_dimensions.y * 0.5 + SPACING {
-            alien.velocity.y *= -1.;
-        }
-
-        if transform.translation.y < -resolution.screen_dimensions.y * 0.5 {
+        // Check if the alien is out of bounds and mark it as dead
+        if transform.translation.x < -resolution.screen_dimensions.x * 0.5
+            || transform.translation.x > resolution.screen_dimensions.x * 0.5
+            || transform.translation.y < -resolution.screen_dimensions.y * 0.5
+            || transform.translation.y > resolution.screen_dimensions.y * 0.5
+        {
             alien.dead = true;
-            alien_manager.alive_aliens -= 1;
         }
 
+        // If the alien is dead, despawn it and update the alive_aliens count
         if alien.dead {
-            commands.entity(entity).insert(Dead {});
-            *visibility = Visibility::Hidden;
-        } else {
-            *visibility = Visibility::Visible;
+            commands.entity(entity).despawn();
+            if alien_manager.alive_aliens > 0 {
+                alien_manager.alive_aliens -= 1;
+            }
         }
     }
 }

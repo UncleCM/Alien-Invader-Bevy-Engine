@@ -12,7 +12,7 @@ impl Plugin for PlayerPlugin{
 }
 
 #[derive(Component)]
-struct Player{
+pub struct Player{
     //provides cooldown for shooting so we don't just shoot a bullet every frame
     pub shoot_timer : f32,
 }
