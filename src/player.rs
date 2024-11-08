@@ -43,14 +43,14 @@ const SPEED: f32 = 200.;
 const BULLET_SPEED: f32 = 400.;
 const SHOOT_COOLDOWN: f32 = 0.5;
 
-fn update_player(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut player_query: Query<(&mut Player, &mut Transform)>,
-    time: Res<Time>,
-    input_state: Res<InputState>,
-    resolution: Res<resolution::Resolution>,
-) {
+    fn update_player(
+        mut commands: Commands,
+        asset_server: Res<AssetServer>,
+        mut player_query: Query<(&mut Player, &mut Transform)>,
+        time: Res<Time>,
+        input_state: Res<InputState>,
+        resolution: Res<resolution::Resolution>,
+    ) {
     let (mut player, mut transform) = player_query.single_mut();
 
     // Use horizontal movement from InputState

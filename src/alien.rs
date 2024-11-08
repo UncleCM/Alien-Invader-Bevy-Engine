@@ -10,7 +10,7 @@ impl Plugin for AlienPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_systems(Startup, setup_aliens)
-            .add_systems(Update, (update_aliens, manage_alien_logic));
+            .add_systems(Update, (update_aliens, manage_alien_logic, alien_shooting, update_alien_projectiles));
     }
 }
 
@@ -19,6 +19,7 @@ pub struct Alien {
     pub dead: bool,
     pub original_position: Vec3,
     pub velocity: Vec2,
+    pub shoot_timer: f32,
 }
 
 #[derive(Component)]
@@ -30,11 +31,19 @@ pub struct AlienManager {
     pub alive_aliens: usize,
 }
 
+#[derive(Component)]
+pub struct AlienProjectile {
+    pub speed: f32,
+}
+
 pub const WIDTH: i32 = 5;
 pub const HEIGHT: i32 = 2;
-const SPACING: f32 = 24.;
+const SPACING: f32 = 24.0;
 const ALIEN_SPEED: f32 = 50.0;
 const ALIEN_VELOCITY_RANGE: (f32, f32) = (-10.0, 10.0);
+const ALIEN_SHOOT_COOLDOWN: f32 = 2.0;
+const ALIEN_PROJECTILE_SPEED: f32 = -200.0;
+const SHOOT_CHANCE: f32 = 0.01; // 1% chance per alien per frame to shoot
 
 fn setup_aliens(
     mut commands: Commands,
@@ -96,6 +105,7 @@ fn setup_aliens(
                 dead: false,
                 original_position: Vec3::new(x, y, 0.0),
                 velocity: Vec2::new(velocity_x, velocity_y),
+                shoot_timer: ALIEN_SHOOT_COOLDOWN,
             },
         ));
     }
@@ -178,7 +188,7 @@ fn manage_alien_logic(
 
         // Number of aliens to respawn + random extra aliens
         let base_count = WIDTH * HEIGHT; // original number of aliens
-        let extra_aliens = rand::thread_rng().gen_range(1..=3); // Random additional aliens
+        let extra_aliens = rand::thread_rng().gen_range(3..=10); // Random additional aliens
 
         let total_aliens_to_spawn = base_count + extra_aliens;
 
@@ -209,8 +219,6 @@ fn manage_alien_logic(
         println!("Alive aliens count after respawn: {}", alien_manager.alive_aliens);
     }
 }
-
-
 
 /// Function to spawn a new alien when all are dead
 fn spawn_new_alien(
@@ -244,6 +252,75 @@ fn spawn_new_alien(
             dead: false,
             original_position: Vec3::new(x, y, 0.0),
             velocity: Vec2::new(velocity_x, velocity_y),
+            shoot_timer: ALIEN_SHOOT_COOLDOWN,
         },
     ));
+}
+
+fn alien_shooting(
+    mut commands: Commands,
+    mut alien_query: Query<(&Transform, &mut Alien)>,
+    asset_server: Res<AssetServer>,
+    time: Res<Time>,
+    resolution: Res<Resolution>,
+) {
+    let mut rng = rand::thread_rng();
+    
+    for (transform, mut alien) in alien_query.iter_mut() {
+        // Update shoot timer
+        alien.shoot_timer -= time.delta_seconds();
+
+        // Check if alien can shoot
+        if alien.shoot_timer <= 0.0 && rng.gen::<f32>() < SHOOT_CHANCE {
+            // Reset shoot timer
+            alien.shoot_timer = ALIEN_SHOOT_COOLDOWN;
+
+            // Spawn alien projectile
+            commands.spawn((
+                SpriteBundle {
+                    texture: asset_server.load("alien_projectile.png"),
+                    transform: Transform::from_translation(transform.translation)
+                        .with_scale(Vec3::splat(resolution.pixel_ratio)),
+                    ..Default::default()
+                },
+                AlienProjectile {
+                    speed: ALIEN_PROJECTILE_SPEED,
+                },
+            ));
+        }
+    }
+}
+
+fn update_alien_projectiles(
+    mut commands: Commands,
+    mut projectile_query: Query<(Entity, &AlienProjectile, &mut Transform)>,
+    player_query: Query<&Transform, (With<Player>, Without<AlienProjectile>)>, // Modified this line
+    time: Res<Time>,
+    resolution: Res<Resolution>,
+) {
+    // Get player position first
+    if let Ok(player_transform) = player_query.get_single() {
+        let player_pos = Vec2::new(player_transform.translation.x, player_transform.translation.y);
+
+        for (projectile_entity, projectile, mut transform) in projectile_query.iter_mut() {
+            // Move projectile
+            transform.translation.y += projectile.speed * time.delta_seconds();
+
+            // Despawn if out of bounds
+            if transform.translation.y < -resolution.screen_dimensions.y * 0.5 {
+                commands.entity(projectile_entity).despawn();
+                continue;
+            }
+
+            // Check for collision with player
+            let projectile_pos = Vec2::new(transform.translation.x, transform.translation.y);
+
+            if Vec2::distance(projectile_pos, player_pos) < 24.0 {
+                // Hit player - you might want to add game over logic here
+                commands.entity(projectile_entity).despawn();
+                // Optional: Trigger player death/game over
+                // commands.entity(player_entity).despawn();
+            }
+        }
+    }
 }

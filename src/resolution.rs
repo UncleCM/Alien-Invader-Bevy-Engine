@@ -32,7 +32,6 @@ fn setup_background(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     resolution: Res<Resolution>,
-    images: Res<Assets<Image>>,
 ) {
     let background_handle = asset_server.load("background.png");
     commands.spawn(SpriteBundle {
