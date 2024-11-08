@@ -1,10 +1,12 @@
+// src/player.rs
 use bevy::prelude::*;
 
 use crate::resolution;
 use crate::projectile;
-use crate::gyro_hander::InputState;  // Update this import
+use crate::gyro_hander::InputState;
 
 pub struct PlayerPlugin;
+
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup_player)
@@ -40,14 +42,13 @@ fn setup_player(
 const SPEED: f32 = 200.;
 const BULLET_SPEED: f32 = 400.;
 const SHOOT_COOLDOWN: f32 = 0.5;
-const TILT_THRESHOLD: f32 = 15.0; // Degrees of tilt needed to trigger shooting
 
 fn update_player(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut player_query: Query<(&mut Player, &mut Transform)>,
     time: Res<Time>,
-    input_state: Res<InputState>,  // Use InputState instead of GyroState
+    input_state: Res<InputState>,
     resolution: Res<resolution::Resolution>,
 ) {
     let (mut player, mut transform) = player_query.single_mut();

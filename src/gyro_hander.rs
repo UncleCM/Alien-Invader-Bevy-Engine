@@ -1,8 +1,12 @@
+use std::ops::Add;
+
 // src/input.rs
 use bevy::prelude::*;
 
 #[cfg(feature = "raspberry_pi")]
-use rppal::i2c::I2c;
+use rppal::gpio::{Gpio, InputPin, Level};
+#[cfg(feature = "raspberry_pi")]
+use rppal::i2c::I2c;    
 
 pub struct InputPlugin;
 
@@ -11,8 +15,8 @@ impl Plugin for InputPlugin {
         app.init_resource::<InputState>();
 
         #[cfg(feature = "raspberry_pi")]
-        app.add_systems(Startup, setup_gyro)
-           .add_systems(Update, update_gyro);
+            app.add_systems(Startup, setup_input)
+            .add_systems(Update, update_input);
 
         #[cfg(feature = "keyboard_controls")]
         app.add_systems(Update, update_keyboard);
@@ -24,10 +28,11 @@ impl Plugin for InputPlugin {
 pub struct InputState {
     pub horizontal_movement: f32,  // -1.0 to 1.0
     pub shoot_requested: bool,
+    pub shoot_button_pressed: bool,
 }
 
 #[cfg(feature = "raspberry_pi")]
-mod gyro_controls {
+mod input_controls {
     use super::*;
     use std::error::Error;
 
@@ -36,26 +41,32 @@ mod gyro_controls {
     const GYRO_XOUT_H: u8 = 0x43;
     const PWR_MGMT_1: u8 = 0x6B;
     const TILT_THRESHOLD: f32 = 15.0;
+    const SHOOT_BUTTON_PIN: u8 = 17; // GPIO pin number for the shoot button
 
     #[derive(Resource)]
-    struct GyroDevice {
+    struct InputDevices {
         i2c: Option<I2c>,
+        button: Option<InputPin>,
     }
 
-    impl Default for GyroDevice {
+    impl Default for InputDevices {
         fn default() -> Self {
-            Self { i2c: None }
+            Self { i2c: None, button: None }
         }
     }
 
-    pub(super) fn setup_gyro(mut commands: Commands) {
+    pub(super) fn setup_input(mut commands: Commands) {
         match I2c::new() {
             Ok(mut i2c) => {
                 if let Err(e) = initialize_mpu6050(&mut i2c) {
                     error!("Failed to initialize MPU6050: {}", e);
                     return;
                 }
-                commands.insert_resource(GyroDevice { i2c: Some(i2c) });
+
+                let mut gpio = Gpio::new().unwrap();
+                let mut button = gpio.get(SHOOT_BUTTON_PIN).unwrap().into_input_pulled_up();
+
+                commands.insert_resource(InputDevices { i2c: Some(i2c), button: Some(button) });
             }
             Err(e) => {
                 error!("Failed to open I2C connection: {}", e);
@@ -69,12 +80,12 @@ mod gyro_controls {
         Ok(())
     }
 
-    pub(super) fn update_gyro(
-        gyro: Option<ResMut<GyroDevice>>,
+    pub(super) fn update_input(
+        input_devices: Option<ResMut<InputDevices>>,
         mut input_state: ResMut<InputState>
     ) {
-        if let Some(mut gyro) = gyro {
-            if let Some(i2c) = &mut gyro.i2c {
+        if let Some(mut input_devices) = input_devices {
+            if let Some(i2c) = &mut input_devices.i2c {
                 if let Ok((x_tilt, y_tilt)) = read_gyro_data(i2c) {
                     let x_normalized = (x_tilt as f32 / 131.0 / 90.0).clamp(-1.0, 1.0);
                     let y_normalized = y_tilt as f32 / 131.0;
@@ -82,6 +93,10 @@ mod gyro_controls {
                     input_state.horizontal_movement = x_normalized;
                     input_state.shoot_requested = y_normalized > TILT_THRESHOLD;
                 }
+            }
+
+            if let Some(button) = &mut input_devices.button {
+                input_state.shoot_button_pressed = button.is_low();
             }
         }
     }
