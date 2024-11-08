@@ -27,7 +27,7 @@ impl Plugin for GamePlugin {
                 )
             )
             .add_systems(Startup, (setup_scene, setup_ui))
-            .add_systems(Update, update_score_text);
+            .add_systems(Update, (update_score_text));
     }
 }
 
@@ -46,7 +46,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>, _resolution:
         text: Text::from_section(
             "Score: 0",
             TextStyle {
-                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                font: asset_server.load("fonts/Pixel Times Bold.ttf"),
                 font_size: 40.0,
                 color: Color::WHITE,
             },

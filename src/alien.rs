@@ -3,6 +3,7 @@ use crate::resolution;
 use rand::Rng;
 use crate::player::Player;
 
+
 pub struct AlienPlugin;
 
 impl Plugin for AlienPlugin {
@@ -151,3 +152,4 @@ fn manage_alien_logic(
         }
     }
 }
+
