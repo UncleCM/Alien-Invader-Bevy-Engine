@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use crate::resolution;
 use rand::Rng;
 use crate::player::Player;
-
+use crate::resolution::Resolution;
 
 pub struct AlienPlugin;
 
@@ -30,8 +30,8 @@ pub struct AlienManager {
     pub alive_aliens: usize,
 }
 
-const WIDTH: i32 = 5;
-const HEIGHT: i32 = 2;
+pub const WIDTH: i32 = 5;
+pub const HEIGHT: i32 = 2;
 const SPACING: f32 = 24.;
 const ALIEN_SPEED: f32 = 50.0;
 const ALIEN_VELOCITY_RANGE: (f32, f32) = (-10.0, 10.0);
@@ -118,11 +118,12 @@ fn update_aliens(
 
         // Check if the alien is out of bounds and mark it as dead
         if transform.translation.x < -resolution.screen_dimensions.x * 0.5
-            || transform.translation.x > resolution.screen_dimensions.x * 0.5
-            || transform.translation.y < -resolution.screen_dimensions.y * 0.5
-            || transform.translation.y > resolution.screen_dimensions.y * 0.5
+        || transform.translation.x > resolution.screen_dimensions.x * 0.5
+        || transform.translation.y < -resolution.screen_dimensions.y * 0.5
+        || transform.translation.y > resolution.screen_dimensions.y * 0.5
         {
             alien.dead = true;
+            println!("Alien went out of bounds and is now dead.");
         }
 
         // If the alien is dead, despawn it and update the alive_aliens count
@@ -130,6 +131,7 @@ fn update_aliens(
             commands.entity(entity).despawn();
             if alien_manager.alive_aliens > 0 {
                 alien_manager.alive_aliens -= 1;
+                println!("Alien despawned. Alive aliens count: {}", alien_manager.alive_aliens);
             }
         }
     }
@@ -137,19 +139,24 @@ fn update_aliens(
 
 fn manage_alien_logic(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     mut alien_query: Query<(Entity, &mut Alien, &mut Transform)>,
     mut alien_manager: ResMut<AlienManager>,
+    resolution: Res<Resolution>,
 ) {
     if alien_manager.alive_aliens == 0 {
-        alien_manager.reset = true;
+        // Respawn all aliens
+        let mut alive_count = 0;
         for (entity, mut alien, mut transform) in alien_query.iter_mut() {
-            transform.translation = alien.original_position;
             if alien.dead {
+                transform.translation = alien.original_position;
                 alien.dead = false;
-                alien_manager.alive_aliens += 1;
                 commands.entity(entity).remove::<Dead>();
+                alive_count += 1;
+                println!("Respawning alien at position: {:?}", alien.original_position);
             }
         }
+        alien_manager.alive_aliens = alive_count;
+        println!("All aliens respawned. Alive aliens count: {}", alien_manager.alive_aliens);
     }
 }
-

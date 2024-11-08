@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-
+use crate::alien::{AlienManager, WIDTH, HEIGHT};
 use crate::alien;
 use crate::resolution::{self, Resolution};
 use crate::player;
@@ -18,6 +18,10 @@ impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app
             .insert_resource(Score { value: 0 })
+            .insert_resource(AlienManager {
+                reset: false,
+                alive_aliens: (WIDTH * HEIGHT) as usize,
+            })
             .add_plugins(
                 (
                     alien::AlienPlugin,
@@ -30,6 +34,7 @@ impl Plugin for GamePlugin {
             .add_systems(Update, (update_score_text));
     }
 }
+
 
 fn setup_scene(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
