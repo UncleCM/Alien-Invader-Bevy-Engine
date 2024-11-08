@@ -5,7 +5,7 @@ mod game;
 mod player;
 mod projectile;
 mod resolution;
-
+mod gyro_hander;
 fn main() {
     App::new()
         // Add default Bevy plugins
@@ -26,5 +26,6 @@ fn main() {
         }))
         // Add our game plugin which contains all other plugins
         .add_plugins(game::GamePlugin)
+        .add_plugins(gyro_hander::InputPlugin)
         .run();
 }
