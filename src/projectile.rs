@@ -39,21 +39,50 @@ fn update_alien_interactions(
     mut commands: Commands,
     mut score: ResMut<Score>,
 ) {
-    for (mut alien, alien_transform) in alien_query.iter_mut() {
-        for (projectile_entity, projectile_transform) in projectile_query.iter_mut() {
+    let mut despawned_projectiles = Vec::new();
+    let mut killed_aliens = Vec::new();
+
+    // First pass: collect all collisions
+    for (alien_idx, (alien, alien_transform)) in alien_query.iter().enumerate() {
+        if alien.dead {
+            continue; // Skip already dead aliens
+        }
+
+        let alien_pos = Vec2::new(
+            alien_transform.translation.x,
+            alien_transform.translation.y,
+        );
+
+        for (projectile_entity, projectile_transform) in projectile_query.iter() {
+            if despawned_projectiles.contains(&projectile_entity) {
+                continue; // Skip already used projectiles
+            }
+
             let projectile_pos = Vec2::new(
                 projectile_transform.translation.x,
                 projectile_transform.translation.y,
             );
-            let alien_pos = Vec2::new(
-                alien_transform.translation.x,
-                alien_transform.translation.y,
-            );
+
             if Vec2::distance(alien_pos, projectile_pos) < BULLET_RADIUS {
-                alien.dead = true;
-                score.value += 1;
-                commands.entity(projectile_entity).despawn();
+                killed_aliens.push(alien_idx);
+                despawned_projectiles.push(projectile_entity);
+                break; // One projectile can only kill one alien
             }
         }
+    }
+
+    // Second pass: apply the changes
+    for alien_idx in killed_aliens {
+        if let Some((mut alien, _)) = alien_query.iter_mut().nth(alien_idx) {
+            if !alien.dead {  // Double-check the alien isn't already dead
+                alien.dead = true;
+                score.value += 1;
+            }
+        }
+    }
+
+    // Finally, despawn all used projectiles
+    for projectile_entity in despawned_projectiles {
+        commands.entity(projectile_entity).despawn();
     }
 }

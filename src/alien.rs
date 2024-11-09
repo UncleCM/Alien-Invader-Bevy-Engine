@@ -186,41 +186,32 @@ fn manage_alien_logic(
     if alien_manager.alive_aliens == 0 {
         println!("All aliens are dead, spawning new aliens.");
 
-        // Number of aliens to respawn + random extra aliens
-        let base_count = WIDTH * HEIGHT; // original number of aliens
-        let extra_aliens = rand::thread_rng().gen_range(3..=10); // Random additional aliens
+        // Clear out any existing dead aliens
+        for (entity, alien, _) in alien_query.iter() {
+            if alien.dead {
+                commands.entity(entity).despawn();
+            }
+        }
 
+        // Calculate total aliens to spawn: 10 base + random(1..=5)
+        let base_count = 10;
+        let extra_aliens = rand::thread_rng().gen_range(1..=5);
         let total_aliens_to_spawn = base_count + extra_aliens;
 
-        // Respawn all dead aliens
-        for (entity, mut alien, mut transform) in alien_query.iter_mut() {
-            if alien.dead {
-                // Respawn the alien at its original position
-                transform.translation = alien.original_position;
-                alien.velocity = Vec2::new(0.0, 0.0); // Reset velocity or keep original
-                alien.dead = false; // Mark as alive
-                println!("Respawned alien at position: {:?}", alien.original_position);
-            }
+        println!("Spawning {} aliens ({} base + {} extra)", total_aliens_to_spawn, base_count, extra_aliens);
+
+        // Spawn all new aliens
+        for _ in 0..total_aliens_to_spawn {
+            spawn_new_alien(&mut commands, &asset_server, &resolution);
         }
 
-        // After respawning aliens, check if any aliens are alive
-        alive_count = alien_query.iter().filter(|(_, alien, _)| !alien.dead).count();
-
-        // If no aliens are alive after respawning, spawn the random number of new aliens
-        if alive_count == 0 {
-            println!("No aliens respawned, spawning {} new aliens.", total_aliens_to_spawn);
-            for _ in 0..total_aliens_to_spawn {
-                spawn_new_alien(&mut commands, &asset_server, &resolution);
-            }
-        }
-
-        // Update the number of alive aliens after respawning
-        alien_manager.alive_aliens = alive_count + (extra_aliens as usize); // Add the extra aliens to the count
+        // Update the number of alive aliens
+        alien_manager.alive_aliens = total_aliens_to_spawn;
         println!("Alive aliens count after respawn: {}", alien_manager.alive_aliens);
     }
 }
 
-/// Function to spawn a new alien when all are dead
+/// Function to spawn a new alien with improved positioning
 fn spawn_new_alien(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -229,13 +220,15 @@ fn spawn_new_alien(
     let alien_texture = asset_server.load("alien.png");
     let mut rng = rand::thread_rng();
 
-    // Generate random position for new alien
-    let x = rng.gen_range(-resolution.screen_dimensions.x * 0.5..resolution.screen_dimensions.x * 0.5);
-    let y = resolution.screen_dimensions.y * 0.5 - SPACING;
+    // Generate position with better distribution
+    let x = rng.gen_range(-resolution.screen_dimensions.x * 0.4..resolution.screen_dimensions.x * 0.4);
+    let y = rng.gen_range(
+        resolution.screen_dimensions.y * 0.1..resolution.screen_dimensions.y * 0.4
+    );
 
-    // Randomize alien velocity
-    let velocity_x = rng.gen_range(ALIEN_VELOCITY_RANGE.0..ALIEN_VELOCITY_RANGE.1);
-    let velocity_y = rng.gen_range(ALIEN_VELOCITY_RANGE.0..ALIEN_VELOCITY_RANGE.1);
+    // Randomize alien velocity with more controlled range
+    let velocity_x = rng.gen_range(-30.0..30.0);
+    let velocity_y = rng.gen_range(-20.0..20.0);
 
     // Spawn the new alien
     commands.spawn((

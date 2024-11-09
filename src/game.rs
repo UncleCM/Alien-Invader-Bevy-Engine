@@ -77,18 +77,26 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>, _resolution:
         TextBundle {
             style: Style {
                 position_type: PositionType::Absolute,
-                left: Val::Px(400.0),
-                top: Val::Px(300.0),
+                left: Val::Percent(50.0),
+                top: Val::Percent(50.0),
+                // Add these new properties for centering
+                margin: UiRect {
+                    left: Val::Px(-300.0), // Half of the approximate text width
+                    top: Val::Px(-50.0),   // Half of the approximate text height
+                    ..default()
+                },
                 ..Default::default()
             },
-            text: Text::from_section(
-                "Game Over!\nPress Space to restart",
-                TextStyle {
-                    font: asset_server.load("fonts/Pixel Times Bold.ttf"),
-                    font_size: 50.0,
-                    color: Color::rgb(1.0, 0.0, 0.0),
-                },
-            ),
+            text: Text::from_sections([
+                TextSection::new(
+                    "Game Over!\nPress Space to restart",
+                    TextStyle {
+                        font: asset_server.load("fonts/Pixel Times Bold.ttf"),
+                        font_size: 50.0,
+                        color: Color::rgb(1.0, 0.0, 0.0),
+                    },
+                )
+            ]).with_justify(JustifyText::Center),
             visibility: Visibility::Hidden,
             ..Default::default()
         },
