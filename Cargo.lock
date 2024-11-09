@@ -3313,6 +3313,7 @@ name = "src"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "once_cell",
  "rand",
  "rppal",
 ]
